@@ -1,0 +1,56 @@
+# Configuración estática de Traefik. Va dentro de la imagen (proxy/Dockerfile):
+# cambios = commit + redeploy del stack pj-proxy en Portainer.
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      aliasHeadersStrategy: delete
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+  websecure:
+    address: ":443"
+    # Las rutas de las apps entran sólo por acá, sin tener que declararlo en cada label.
+    asDefault: true
+    http:
+      tls: {}
+      # Descarta headers con "_" o "." en el nombre (X_Middleware_Subrequest):
+      # algunos backends los leen como si fueran el header con guiones.
+      aliasHeadersStrategy: delete
+      # Se aplica a todas las rutas: encabezados de seguridad y compresión.
+      middlewares:
+        - seguridad@file
+  # Sólo para el healthcheck del contenedor; no se publica.
+  ping:
+    address: ":8082"
+    http:
+      aliasHeadersStrategy: delete
+
+ping:
+  entryPoint: ping
+
+providers:
+  # Contenedores con label traefik.enable=true. En Swarm se reemplaza por el
+  # provider "swarm" con el mismo endpoint y los labels pasan a deploy.labels.
+  docker:
+    endpoint: tcp://socket-proxy:2375
+    exposedByDefault: false
+    network: edge
+  # Certificado y middlewares compartidos.
+  file:
+    directory: /etc/traefik/dinamica
+    watch: true
+
+api:
+  dashboard: false
+
+log:
+  level: INFO
+
+accessLog:
+  format: json

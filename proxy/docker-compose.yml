@@ -1,0 +1,66 @@
+# Proxy de borde compartido (Traefik): único servicio que publica puertos en el
+# host. Termina TLS con el certificado del PJ y enruta por hostname. Las rutas
+# NO están acá: cada app las declara con labels en su propio compose (ver LEEME.md).
+# Un solo stack para testing y producción.
+#
+# Stack de Portainer desde Git (este repo):
+#   nombre: pj-proxy   compose path: proxy/docker-compose.yml   rama: main
+#   variables: ADMIN_CIDR
+# Requisitos en el host (ver docs/RUNBOOK-MIGRACION.md, Fase 1):
+#   - red "edge" creada (Portainer > Networks > Add network, driver bridge)
+#   - /srv/pj/certs con cert.pem, key.pem y ca.crt
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  traefik:
+    build: .
+    image: pj/traefik:v3.7.16
+    pull_policy: build
+    restart: unless-stopped
+    logging: *logging
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # Lo lee dinamica/middlewares.yml (middleware solo-admin). Rangos separados
+      # por espacio. Cambiarlo = editar la variable en Portainer y "Update the stack".
+      ADMIN_CIDR: ${ADMIN_CIDR:?falta ADMIN_CIDR}
+    volumes:
+      - /srv/pj/certs:/certs:ro
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      - socket-proxy
+    networks:
+      - edge
+      - socket
+
+  # Traefik lee los labels de los contenedores por la API de Docker. En vez de
+  # montarle el socket (equivale a root en el host), habla con este proxy, que
+  # sólo deja pasar lecturas de contenedores, eventos y versión.
+  socket-proxy:
+    image: tecnativa/docker-socket-proxy:v0.4.2
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      CONTAINERS: 1
+      POST: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - socket
+
+networks:
+  edge:
+    external: true
+  # Interna: sólo traefik llega al socket-proxy, y sin salida al exterior.
+  socket:
+    internal: true

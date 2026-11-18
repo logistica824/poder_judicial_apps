@@ -1,0 +1,12 @@
+# El certificado lo provee el cliente (CA interna): sin ACME.
+# Los archivos están en el host, en /srv/pj/certs (montado en /certs).
+# Al reemplazar cert.pem/key.pem: reiniciar el contenedor traefik desde Portainer.
+tls:
+  stores:
+    default:
+      defaultCertificate:
+        certFile: /certs/cert.pem
+        keyFile: /certs/key.pem
+  options:
+    default:
+      minVersion: VersionTLS12

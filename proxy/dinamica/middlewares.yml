@@ -1,0 +1,52 @@
+# Middlewares compartidos. Las apps los referencian como <nombre>@file.
+# Este archivo pasa por Go template (env lee las variables del contenedor:
+# ADMIN_CIDR viene de la variable del stack pj-proxy en Portainer).
+http:
+  middlewares:
+    # Aplicado a todas las rutas desde el entrypoint websecure (traefik.yml).
+    seguridad:
+      chain:
+        middlewares:
+          - cabeceras
+          - compresion
+
+    cabeceras:
+      headers:
+        # CVE-2025-29927: nunca dejar pasar este header interno de Next.js desde
+        # afuera (permite saltear el middleware; crítico en horas-extra, Next 14.2.7).
+        # Valor vacío = se elimina.
+        customRequestHeaders:
+          X-Middleware-Subrequest: ""
+        customResponseHeaders:
+          Server: ""
+          X-Powered-By: ""
+        stsSeconds: 31536000
+        contentTypeNosniff: true
+        referrerPolicy: strict-origin-when-cross-origin
+        # Ninguna app se embebe en iframes: bloquea clickjacking.
+        customFrameOptionsValue: SAMEORIGIN
+        permissionsPolicy: "camera=(), microphone=(), geolocation=(), payment=()"
+
+    compresion:
+      compress: {}
+
+    # Supabase Studio y todo lo que no sea la API: sólo desde la red de
+    # administración (ADMIN_CIDR, separados por espacio). Envoy además pide basic auth.
+    solo-admin:
+      ipAllowList:
+        sourceRange:
+{{- range splitList " " (env "ADMIN_CIDR") }}{{ if . }}
+          - "{{ . }}"{{ end }}{{ end }}
+
+    # Corta una ruta con 403 (Traefik no tiene respuesta fija; ninguna IP real
+    # es 255.255.255.255). Lo usan:
+    #  - las apps Next en /_next/image: ninguna usa next/image, pero `next start`
+    #    igual expone el optimizador, con advisories críticas en las versiones
+    #    actuales (GHSA-2464-fhr4-w9xw, GHSA-2xp9-vwfh-vxw4, GHSA-cjq9-62q9-8jv4).
+    #    Se corta hasta actualizar Next. Si una app empieza a usar next/image,
+    #    quitar esa ruta de sus labels.
+    #  - horas-extra en /api/cron/: el cron lo dispara el contenedor interno.
+    bloqueado:
+      ipAllowList:
+        sourceRange:
+          - "255.255.255.255/32"

@@ -1,0 +1,13 @@
+# Gateway interno: supabase-js llama a <SUPABASE_URL>/rest/v1/<tabla>;
+# PostgREST sirve las tablas en la raíz. Sin TLS (no sale de la red del stack).
+{
+	auto_https off
+	admin off
+}
+
+:8080 {
+	handle_path /rest/v1/* {
+		reverse_proxy rest:3000
+	}
+	respond 404
+}

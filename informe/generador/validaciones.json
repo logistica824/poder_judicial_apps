@@ -1,0 +1,30 @@
+{
+  "migracion": [
+    ["Sintaxis de los 6 archivos docker compose", "Correcto"],
+    ["Generación de claves por stack (firma de los JWT verificada)", "Correcto"],
+    ["Construcción de las 5 imágenes, incluso detrás de un proxy con inspección TLS (opción incluida)", "Correcto"],
+    ["Las 5 aplicaciones arrancan y responden por el proxy HTTPS con la CA interna", "Correcto"],
+    ["Proxy de entrada: rutas declaradas por cada app; HTTP redirige a HTTPS; TLS 1.1 rechazado; certificado del PJ", "Correcto"],
+    ["Bocas: relevamiento, exportación y carga desde una base simulada; validación 250/250 filas por tabla; tablas de otra app excluidas; protección contra carga repetida", "Correcto"],
+    ["Bocas: lectura y alta de registros por la API pública; token inválido rechazado (401); URL de la API embebida en la app", "Correcto"],
+    ["Inasistencias: login correcto (200) y contraseña errónea (401) de punta a punta; su base y API no son alcanzables desde afuera del stack", "Correcto"],
+    ["Gestión de Proyectos: 13 migraciones + post-restore idempotente; alta de usuarios crea el perfil; login; páginas con sesión real y reglas de acceso por rol", "Correcto"],
+    ["Gestión de Proyectos — archivos: el admin sube planos PDF; el operador es rechazado; tipo no permitido rechazado; descarga por enlace firmado", "Correcto"],
+    ["Horas Extra: 12 migraciones + post-restore; tiempo real (cambio en la base recibido en el navegador por WebSocket a través del proxy, 101)", "Correcto"],
+    ["Horas Extra: recordatorio programado (con clave 200, sin clave 401) e inaccesible desde afuera", "Correcto"]
+  ],
+  "seguridad": [
+    ["Gestión: registro público rechazado (G-01)", "Rechazado (422)"],
+    ["Horas: registro y login por email rechazados; sólo Google (H-01)", "Rechazados"],
+    ["Funciones de la base sin sesión (G-05) / con sesión", "Denegado (401) / permitido (204)"],
+    ["Regresión de login, reglas de acceso y archivos tras el endurecimiento", "Sin cambios"],
+    ["Relevamiento detecta el super_admin de otro dominio en una base nueva (H-03)", "Detectado"],
+    ["Horas: intento de CVE-2025-29927 a través del proxy (H-04)", "Sin acceso (redirige a login)"],
+    ["Proxy: encabezado de CVE-2025-29927 (también con variantes de nombre) eliminado antes de llegar a la app", "Eliminado"],
+    ["Proxy: optimizador de imágenes de Next.js (T-01) y /api/cron de Horas Extra desde afuera", "Bloqueados (403)"],
+    ["Proxy: encabezados HSTS, anti-clickjacking y Permissions-Policy en las respuestas (T-03)", "Presentes"],
+    ["Proxy: TLS 1.1 rechazado; HTTP redirige a HTTPS", "Correcto"],
+    ["Consola de administración (Studio) fuera de la red de administración / desde ella", "Bloqueada (403) / permitida"],
+    ["Inasistencias: base y API no alcanzables desde afuera del servidor (I-08, S-03)", "Correcto"]
+  ]
+}

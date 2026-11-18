@@ -1,0 +1,39 @@
+# oficinas-judiciales: Next.js 16 sin base de datos (los datos están en
+# data/office.ts). Sólo manda mails por la API de Resend.
+#
+# Stack de Portainer desde Git, en la raíz del repo de la app (lo copia
+# procom-migracion-pj/scripts/armar-repo.sh):
+#   nombre: pj-oficinas-test (rama testing) | pj-oficinas-prod (rama main)
+#   variables: /srv/pj/env/oficinas-judiciales-<entorno>.env (Advanced mode)
+# Sin puertos al host: entra sólo por Traefik (red externa "edge").
+
+services:
+  web:
+    build: .
+    image: pj/oficinas-web:${ENTORNO:?falta ENTORNO (test o prod)}
+    # La imagen sólo existe local: Portainer la reconstruye en cada redeploy
+    # en vez de intentar bajarla de Docker Hub.
+    pull_policy: build
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    security_opt: [no-new-privileges:true]
+    environment:
+      RESEND_API_KEY: ${RESEND_API_KEY:?falta RESEND_API_KEY}
+    networks: [edge]
+    labels:
+      - traefik.enable=true
+      - traefik.http.services.oficinas-web-${ENTORNO}.loadbalancer.server.port=3000
+      - traefik.http.routers.oficinas-web-${ENTORNO}.rule=Host(`${WEB_HOST:?falta WEB_HOST}`)
+      - traefik.http.routers.oficinas-web-${ENTORNO}.service=oficinas-web-${ENTORNO}
+      # /_next/image: advisories críticas en Next 16.0.x y la app no lo usa.
+      - traefik.http.routers.oficinas-web-${ENTORNO}-bloqueo.rule=Host(`${WEB_HOST}`) && PathPrefix(`/_next/image`)
+      - traefik.http.routers.oficinas-web-${ENTORNO}-bloqueo.middlewares=bloqueado@file
+      - traefik.http.routers.oficinas-web-${ENTORNO}-bloqueo.service=oficinas-web-${ENTORNO}
+
+networks:
+  edge:
+    external: true

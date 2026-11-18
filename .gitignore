@@ -1,0 +1,16 @@
+# Secretos y datos: nunca al repo
+.env
+proxy/certs/*
+!proxy/certs/LEEME.md
+scripts/repos.conf
+dumps/
+*/volumes/
+
+# Clones de los repos del cliente (los maneja scripts/deploy.sh)
+apps/
+
+# Dependencias del generador del informe
+informe/generador/node_modules/
+
+# Archivos temporales de Office
+~$*

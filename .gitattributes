@@ -1,0 +1,4 @@
+# Scripts y configs se ejecutan en Linux: siempre LF, aunque se commitee desde Windows.
+* text=auto eol=lf
+*.png binary
+*.docx binary

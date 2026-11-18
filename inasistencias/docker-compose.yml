@@ -1,0 +1,109 @@
+# inasistencias: Express 5 (+ estáticos). Usa supabase-js sólo desde el servidor
+# como cliente de tablas, así que alcanza con Postgres + PostgREST, ambos sólo
+# en la red interna. rest-gw expone PostgREST bajo /rest/v1, que es la ruta
+# que arma supabase-js a partir de SUPABASE_URL.
+#
+# Stack de Portainer desde Git, en la raíz del repo de la app (lo copia
+# procom-migracion-pj/scripts/armar-repo.sh). La app está en la carpeta
+# inasistencias/ del repo; los Dockerfile, en deploy/.
+#   nombre: pj-inasistencias-test (rama testing) | pj-inasistencias-prod (rama main)
+#   variables: /srv/pj/env/inasistencias-<entorno>.env (Advanced mode)
+# Portainer CE no monta archivos con ruta relativa: Caddyfile y SQL de init van
+# dentro de las imágenes; los datos en /srv/pj/datos/<entorno>/inasistencias.
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  web:
+    build:
+      context: ./inasistencias
+      # Relativo al contexto.
+      dockerfile: ../deploy/web/Dockerfile
+    image: pj/inasistencias-web:${ENTORNO:?falta ENTORNO (test o prod)}
+    pull_policy: build
+    restart: unless-stopped
+    logging: *logging
+    security_opt: [no-new-privileges:true]
+    environment:
+      SUPABASE_URL: http://rest-gw:8080
+      SUPABASE_ANON_KEY: ${ANON_KEY}
+    depends_on:
+      rest:
+        condition: service_healthy
+    networks: [default, edge]
+    labels:
+      - traefik.enable=true
+      - traefik.http.services.inasistencias-web-${ENTORNO}.loadbalancer.server.port=3000
+      - traefik.http.routers.inasistencias-web-${ENTORNO}.rule=Host(`${WEB_HOST:?falta WEB_HOST}`)
+      - traefik.http.routers.inasistencias-web-${ENTORNO}.service=inasistencias-web-${ENTORNO}
+
+  rest-gw:
+    build: ./deploy/rest-gw
+    image: pj/inasistencias-rest-gw:${ENTORNO}
+    pull_policy: build
+    restart: unless-stopped
+    logging: *logging
+
+  rest:
+    image: postgrest/postgrest:v14.18
+    restart: unless-stopped
+    logging: *logging
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "postgrest", "--ready"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+    environment:
+      PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD}@db:5432/postgres
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      # La app lee tablas completas (select *) y filtra en memoria.
+      PGRST_DB_MAX_ROWS: 100000
+      PGRST_ADMIN_SERVER_PORT: 3001
+      PGRST_ADMIN_SERVER_HOST: localhost
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+    command: ["postgrest"]
+
+  db:
+    build:
+      context: ./deploy/db
+      target: minima
+    image: pj/inasistencias-db:${ENTORNO}
+    pull_policy: build
+    restart: unless-stopped
+    logging: *logging
+    volumes:
+      - /srv/pj/datos/${ENTORNO}/inasistencias/db:/var/lib/postgresql/data
+      - db-config:/etc/postgresql-custom
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      # La primera inicialización (initdb + migraciones de la imagen) tarda más.
+      start_period: 60s
+    environment:
+      POSTGRES_HOST: /var/run/postgresql
+      PGPORT: 5432
+      POSTGRES_PORT: 5432
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: postgres
+      POSTGRES_DB: postgres
+      JWT_EXP: 3600
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf", "-c", "log_min_messages=fatal"]
+
+networks:
+  edge:
+    external: true
+
+volumes:
+  db-config:
